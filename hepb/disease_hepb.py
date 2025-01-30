@@ -23,14 +23,15 @@ class DiseaseHepB(DiseaseBase):
         self.start_ratio = p['start_ratio']
 
         self.imm_prev = p['imm_prevalence']
+        self.healthcare_access = p['healthcare_access']
 
         sus = Susceptible(0)
         acu = Acute(1, DurationGeneratorFixed(p['t_per_year']/2), rng)
-        chr = Chronic(2, 1-pow(1-p['treat_rate']/364, days_per_t), 1-pow(1-p['death_rate']/364, days_per_t), rng)
+        chr = Chronic(2, 1-pow(1-p['treat_rate']/364, days_per_t), 1-pow(1-p['death_rate']/364, days_per_t), rng, 
+                      healthcare_access=p['healthcare_access'])
         rec = Recovered(3)
         tre = Treated(4)
         vac = Vaccinated(5)
-        # add exposed and see if it changes anything?
         
         self.add_states(sus, acu, chr, rec, tre, vac)
 
@@ -76,11 +77,21 @@ class DiseaseHepB(DiseaseBase):
         
         TODO: update this to handle, e.g., transfer of maternal immunity.
         """
+
+        for ind in chain(imms):
+            if rng.random() < self.imm_prev:
+                ind.next_state = self.states['C']
+            else:
+                ind.next_state = self.states[self.basic_susceptible]
+            self.tick(t, ind)
+
+        universal_pmtct_cover = self.start_ratio * self.pmtct_cover + (1-self.start_ratio) * self.pmtct_cover * (t - self.start_t) / (self.end_t - self.start_t)
+        universal_vac_cover = self.start_ratio*self.vac_cover + (1-self.start_ratio) * self.vac_cover * (t - self.start_t) / (self.end_t - self.start_t)
         for ind in births:
             mother = [p for p in ind.parents if p.sex == 0]
             ind.next_state = self.states[self.basic_susceptible]
-            modified_pmtct_cover = self.start_ratio * self.pmtct_cover + (1-self.start_ratio) * self.pmtct_cover * (t - self.start_t) / (self.end_t - self.start_t)
-
+            community = ind.groups['community']
+            modified_pmtct_cover = universal_pmtct_cover * self.healthcare_access[community]
             if mother:
                 mother = mother.pop()
                 acu_prob = 0
@@ -89,7 +100,7 @@ class DiseaseHepB(DiseaseBase):
                 elif mother.state.label == "A":
                     acu_prob = self.acu_mtc_prob
 
-                
+
                 if acu_prob > 0 and rng.random() < acu_prob:
                     if t > self.start_t and modified_pmtct_cover > 0 and rng.random() < modified_pmtct_cover:
                         ind.next_state = self.states["V"]
@@ -98,7 +109,7 @@ class DiseaseHepB(DiseaseBase):
                         ind.next_state = self.states["A"]
 
 
-            modified_vac_cover = self.start_ratio*self.vac_cover + (1-self.start_ratio) * self.vac_cover * (t - self.start_t) / (self.end_t - self.start_t)
+            modified_vac_cover = universal_vac_cover * self.healthcare_access[community]
             if ind.next_state != self.states["V"] and t > self.start_t and modified_vac_cover > 0:
                 if ind.next_state == self.states[self.basic_susceptible] and rng.random() < modified_vac_cover:
                     ind.next_state = self.states['V']
@@ -106,12 +117,7 @@ class DiseaseHepB(DiseaseBase):
                     ind.next_state = self.states['V']
             self.tick(t, ind)
         
-        for ind in chain(imms):
-            if rng.random() < self.imm_prev:
-                ind.next_state = self.states['C']
-            else:
-                ind.next_state = self.states[self.basic_susceptible]
-            self.tick(t, ind)
+        
 
         for ind in deaths:
             if ind.state:

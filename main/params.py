@@ -27,14 +27,15 @@ p = {
     'birth_gap_mean': 270,
     'birth_gap_sd': 1,
 
-    'pop_size': 80,
+    'pop_size': 90,
     'growth_rate': 0.0,
-    'imm_rate': 0.0003,
+    'imm_rate': 0,
 
-    'com_dist': [0.1, 0.9],
-    'mobility_rates': [[0, 0.01, 0],
-                       [0.01, 0, 0.01],
-                       [0, 0.005, 0]],
+    'com_dist': [0.2, 0.8],
+    'mobility_rates': [[0, 1, 0],
+                       [0, 0.98, 0.02],
+                       [0, 0, 1]],
+    'healthcare_access': [0.2, 1],
 
     'preg': False,
     'use_parity': False,
@@ -64,8 +65,8 @@ p = {
     'imm_prevalence': 0.1,
 
     # intervention parameters
-    'pmtct_cover': 0.6,
-    'vac_cover' : 0.9,
+    'pmtct_cover': 0.5,
+    'vac_cover' : 0.95,
     'treat_cover': 0.05,
 
     'start_ratio': 0.2,
@@ -93,7 +94,7 @@ p = {
 
     # run parameters
     'num_runs': 1,
-    'initial_cases': 525,
+    'initial_cases': 1000,
     'output_list': ['all'],
     'save_cp': True,
     'logging': False,

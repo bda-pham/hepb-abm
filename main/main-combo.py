@@ -1,4 +1,4 @@
-repo_path = 'E:/trachoma/code'
+repo_path = 'E:/hepb'
 import os, sys
 import pandas as pd
 sys.path.append(os.path.join(repo_path, 'simodd-pop'))

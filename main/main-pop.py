@@ -1,27 +1,34 @@
 """
 A stub for testing/evaluating dynamic demography simulations.
 """
-repo_path = 'E:/trachoma/code'
+repo_path = 'E:/hepb'
 import os, sys
 sys.path.append(os.path.join(repo_path, 'simodd-pop'))
 sys.path.append(os.path.join(repo_path, 'simodd-dis'))
+sys.path.append(os.path.join(repo_path, 'simodd-hepb'))
 
 
 from population.simulation import Simulation
+from disease.general.contact_matrix import ContactMatrix
 from population.utils import create_path
 from observers.obs_pop import PopulationObserver
 # from pop_explore.output_pop import *
 from disease.experiments.param_combo import ParamComboIt
+from disease.general.ind_epi import IndEpi
 from params import p
+from hepb.simulation_com import SimEpiCom
+from hepb.disease_hepb import DiseaseHepB
+from random import Random
 
-
-def run_single(p):
+def run_single(p, cur_seed):
     create_path(p['prefix'])
     # print("Creating population...")
     iterations = (p['years'][1] + p['epi_burn_in'] + p['burn_in']) * p['burn_in_t_per_year']
     #pop_fname = os.path.join(p['prefix'], 'population.hd5')
         
-    sim = Simulation(p, create_pop=False)
+    rng = Random(cur_seed)
+    disease = DiseaseHepB(p, ContactMatrix(), rng, p['prefix']+"/population.hd5", mode='w')
+    sim = SimEpiCom(p, disease, rng, ind_type=IndEpi)
     sim.add_observers(PopulationObserver(sim.h5file))
 
     # print("Running simulation...")
@@ -51,10 +58,10 @@ if __name__ == '__main__':
     #     {'name': 'divorce_prob', 'values': [0.001]}
     # ]
     sweep_params = [
-        {'name': 'couple_prob', 'values': [0.03]},
-        {'name': 'leaving_prob', 'values': [0.01]},
-        {'name': 'divorce_prob', 'values': [0.01]}
-        # {'name': 'growth_rate', 'values': [0]}
+        # {'name': 'couple_prob', 'values': [0.03]},
+        # {'name': 'leaving_prob', 'values': [0.01]},
+        # {'name': 'divorce_prob', 'values': [0.01]}
+        {'name': 'growth_rate', 'values': [0]}
     ]
     p['t_per_year'] = p['burn_in_t_per_year']
     
@@ -65,5 +72,5 @@ if __name__ == '__main__':
 
 
     # just for info, 
-    for x in param_combos:
-        cur_sim = run_single(x)
+    for i, x in enumerate(param_combos):
+        cur_sim = run_single(x, i)

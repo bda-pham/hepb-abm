@@ -35,6 +35,27 @@ load_data <- function(duration=30, epi_burn_in=150, t_per_year=13, t_offset = 0)
   cur_df
 }
 
+load_data_from_name <- function(file_name, epi_burn_in=150, t_per_year=13, t_offset = 0) {
+  df <- NULL
+  burnin = epi_burn_in
+  path = sprintf("main/output/%s.hd5", file_name)
+  
+  print(here(path))
+  cur_df <- h5read(here(path), "state/base_data", compoundAsDataFrame = TRUE)
+  cur_df <- cur_df |>
+    mutate(total=(S+A+C+T+R+V), year=(t-t_offset)/t_per_year-burnin+1983,
+           Acute=A, Chronic=C, Recovered=R, Treated=T, Vaccinated=V)
+  cur_df <- cur_df %>% 
+    pivot_longer(
+      cols = `Acute`:`Vaccinated`, 
+      names_to = "state",
+      values_to = "count"
+    ) 
+  print(typeof(cur_df))
+  cur_df
+}
+
+
 plot_prevalence <- function(prevalence_df, title="", duration=40) {
   plot <- ggplot(filter(prevalence_df, state!="S"), aes(x=year, y=100*count/total, color=state)) +
     geom_line(size=1) +
@@ -56,7 +77,25 @@ ggplot(filter(df, state!="S")) +
 
 plot_prevalence(df, duration=40)
 
-### age prevalence
+df_cover <- load_data_from_name("disease_cover", epi_burn_in = 160) |>
+  mutate(scenario="cover")
+df_base <- load_data_from_name("disease_base", epi_burn_in = 160) |>
+  mutate(scenario="base")
+df_access <- load_data_from_name("disease_access", epi_burn_in = 160) |>
+  mutate(scenario="access")
+df_noaccess <- load_data_from_name("disease_noaccess", epi_burn_in = 160) |>
+  mutate(scenario="noaccess")
+
+all_df <- rbind(df_base, df_cover, df_access, df_noaccess) |>
+  filter(state=="Chronic")
+ggplot(all_df) +
+  geom_line(aes(x=year, y=100*count/total, color=scenario), size=1) +
+  geom_point(data=real_prev, aes(x=year, y=prevalence*100), size=2) +
+  scale_y_continuous("Prevalence (%)") +
+  xlab("Year") +
+  theme_minimal()
+
+h### age prevalence
 load_age_hh_prev_data <- function(mode="prev_age", duration=100, epi_burn_in=200, t_per_year=13, t_offset=0) {
   df <- NULL
   path = sprintf("main/output/disease_%s_%s.hd5", epi_burn_in, epi_burn_in+duration)

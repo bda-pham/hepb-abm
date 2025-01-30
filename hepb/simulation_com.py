@@ -13,7 +13,8 @@ from collections import defaultdict
 from hepb.pop_hhcom import PopHHCom
 from disease.general.sim_epi import SimEpi
 from disease.general.ind_epi import IndEpi
-from population.pop_gen import allocate_couples, split_age_probs
+from population.household import Household
+from population.pop_gen import allocate_couples, split_age_probs, duplicate_household
 from population.utils import sample_table, load_probs, \
     load_probs_new, load_age_rates, load_prob_tables, load_prob_list
 
@@ -96,8 +97,8 @@ def gen_hh_com_age_structured_pop(pop, pop_size, comm_dist, hh_probs, age_probs_
                     0, 'f', "Household (bootstrap)",
                     len(pop.groups['household'][hh_id]))
         comm_id = pop.add_group('community', cur_comm)
-        print(f"Added community {comm_id}")
-        print(pop.groups.keys())
+        # print(f"Added community {comm_id}")
+        assert(all([comm_id == ind.groups['community'] for ind in cur_comm]))
         pass
 
 
@@ -119,7 +120,8 @@ class SimEpiCom(SimEpi):
 
     def __init__(self, p, disease, rng, ind_type=IndEpi):
         super(SimEpiCom, self).__init__(p, disease, rng, ind_type)
-
+        self.imm_residue = 0
+ 
     def create_population(self):
         """
         Create a population according to specified age and household size
@@ -129,13 +131,13 @@ class SimEpiCom(SimEpi):
         self.P = PopHHCom(self.ind_type, self.p['logging'])
         gen_hh_com_age_structured_pop(self.P, self.p['pop_size'], self.p['com_dist'], self.hh_comp,
                                   self.age_dist, self.p['age_cutoffs'], self.rng)
-        c = 0
-        for ind in self.P.I.values():
-            if 'community' not in ind.groups:
-                c += 1
-                pass
-        print(f'{c} individuals w no comm!')
+
         allocate_couples(self.P)
+
+    def _load_demographic_data(self):
+        super(SimEpiCom, self)._load_demographic_data()
+        self.mobility_rates = [[_adjust_prob(r, self.p['t_per_year']) for r in rates] for rates in self.p["mobility_rates"]]
+
 
     def _choose_partner(self, ind):
         """
@@ -196,36 +198,186 @@ class SimEpiCom(SimEpi):
         :returns: a tuple containing lists of births, deaths, immigrants and birthdays
 
         """
-        births, deaths, immigrants, birthdays = super(SimEpiCom, self).update_all_demo(t)
-        # set comm of immigrants
-        for ind in immigrants:
-            ind.groups['community'] = 0
 
+        emigrants = []
         # movement between communities
+        mobility_rates = self.mobility_rates[1:]
         for hh in self.P.groups['household'].values():
             cur_com = hh[0].groups['community']
-            dist = self.p['mobility_rates'][cur_com+1]
-            tar_com = proportional_sample(dist, self.rng)
-            if tar_com:
-                tar_com -= 1
-                if tar_com == -1:
+            tar_com = proportional_sample(mobility_rates[cur_com], self.rng)
+            if tar_com is not None:
+                if tar_com == 0:
                     # leave the region
-                    for ind in hh:
-                        self.P.remove_individual(ind)
-                    pass
+                    emigrants.extend(hh)
                 else:
                     for ind in hh:
                         self.P.remove_individual_from_group('community', ind)
-                    print(self.P.groups.keys())
-                    print(f"Community: household moving from {cur_com} to {tar_com}")
-                    self.P.add_individuals_to_group('community', tar_com, hh)
+                    # print(f"Community: household moving from {cur_com} to {tar_com}")
+                    self.P.add_individuals_to_group('community', tar_com-1, hh)
+        for ind in emigrants:
+            self.P.remove_individual(ind)
+        
+        # age each individual by appropriate number of days
+        birthdays = self.P.age_population(364 // self.p['t_per_year'])
 
+        deaths = []
+        births = []
+
+        # calculate index for fertility and mortality rates
+        # basically: use first entry for burn-in, then one entry every 
+        # 'period' years, then use the final entry for any remaining years.
+        index = min(max(
+            0, (t - (self.p['demo_burn'] * self.p['t_per_year'])) //
+               (self.p['t_per_year'])), self.dyn_years) \
+            if self.p['dyn_rates'] else 0
+
+        # print cur_t / self.p['t_per_year'], \
+        #     index, self.p_adj['growth_rates'][index], \
+        #     len(self.P.I)
+
+        cur_inds = list(self.P.I.values())
+        for ind in cur_inds:
+            death, birth = self._update_individual_demo(t, ind, index)
+            if death == "error" and birth == "error":
+                return "error", "error", "error", "error"
+            if death:
+                deaths.append(death)
+            if birth:
+                births.append(birth)
+
+        # trigger delayed (due to pregnancy births)
+        for mother in self.preg_schedule[t]:
+            # create new individuals
+            new_ind = self.P.birth(t, mother, 0 if self.rng.random() < 0.5 else 1)
+            births.append(new_ind)
+            # remove mother from pregnancy list
+            del self.P.preg_current[mother]
+        del self.preg_schedule[t]
+
+
+        # immigration
+        ##############
+
+        imm_count = 0
+        imm_tgt = len(self.P.I) * self.p_adj['imm_rates'][index] + self.imm_residue
+        source_hh_ids = []
+        immigrants = []
+        while imm_count < imm_tgt - 1:
+            hh_id = self.rng.choice(list(self.P.groups['household'].keys()))
+            imm_count += len(self.P.groups['household'][hh_id])
+            source_hh_ids.append(hh_id)
+        self.imm_residue = imm_tgt - imm_count
+        # print(f'Immigration: target {imm_tgt}, actual {imm_count}, residue {self.imm_residue}')
+        for hh_id in source_hh_ids:
+            new_hh_id = duplicate_household(self.P, t, hh_id)
+            immigrants.extend(self.P.groups['household'][new_hh_id])
+
+        immigration_rates = self.mobility_rates[0][1:]
+
+        if sum(immigration_rates) > 0:
+            total = sum(immigration_rates)
+            normalised_rates = [r/total for r in immigration_rates]
+            for ind in immigrants:
+                comm = proportional_sample(normalised_rates, self.rng)
+                self.P.add_individuals_to_group('community', comm, [ind])
+        else:
+            for ind in immigrants:
+                comm = self.rng.choice(range(len(immigration_rates))) 
+                self.P.add_individuals_to_group('community', comm, [ind])
+
+        # natural population growth
+        ####################
+
+        # print "growth rate (%d) = %f: %d" % (index, self.p_adj['growth_rates'][index], len(self.P.I))
+
+        # calculate number of new individuals to add (whole and fraction)
+        new_individuals = (len(self.P.I) * self.p_adj['growth_rates'][index] + len(deaths) - len(immigrants))
+
+        # get whole part of new individuals
+        new_now = int(max(0, new_individuals))
+        # add fractional part to residue accumulation
+        self.growth_residue += (new_individuals - new_now)
+        # grab any new 'whole' individuals
+        new_residue = int(self.growth_residue)
+        new_now += new_residue
+        self.growth_residue -= new_residue
+
+        # create the new individuals
+        for _ in range(new_now):
+            #mother = self._choose_mother(index)
+            mother = self._choose_mother(0)
+            if mother == "error":
+                return "error", "error", "error", "error"
+            new_ind = self.P.birth(t, mother, 0 if self.rng.random() < 0.5 else 1)
+            births.append(new_ind)
+
+        # set comm of immigrants
+        # immigration
+        ##############
+
+        # print(f'immigrants {len(immigrants)}, emigrants {len(emigrants)}, births {len(births)}, deaths {len(deaths)}')
+        # print(f't: {t}, communities: { {k:len(comm) for k, comm in self.P.groups["community"].items()}}, total: {len(self.P.I)}')
         return births, deaths, immigrants, birthdays
     
+    def _update_individual_demo(self, t, ind, index=0):
+        """
+        Update individual ind; check for death, couple formation, leaving home
+        or divorce, as possible and appropriate.
+        """
+
+        death = None
+        birth = None
+
+        # DEATH / BIRTH:
+        #if self.rng.random() > exp(-self.death_rates[ind.sex][ind.age][index]):
+        if self.rng.random() > exp(-self.death_rates[ind.sex][ind.age][0]):
+
+            # currently pregnant women are 'immune' from dying
+            if ind in self.P.preg_current:
+                return death, birth
+            death = ind
+            
+            # trigger death and reallocate any orphan children
+            orphans = self.P.death(t, ind)
+            for cur_dep in orphans:
+                if cur_dep.age > self.p['leaving_age']:
+                    self.P.leave_home(t, cur_dep)
+                else:
+                    hh = self._choose_household(cur_dep)
+                    self.P.allocate_orphan(t, cur_dep, hh)
+
+            
+        # COUPLE FORMATION:
+        elif self.p['couple_age'] < ind.age < self.p['couple_age_max'] \
+                and not ind.partner \
+                and self.rng.random() < self.p_adj['couple_probs'][index]:
+            partner = self._choose_partner(ind)
+            if partner:
+                self.P.form_couple(t, ind, partner)
+
+        # LEAVING HOME:
+        elif ind.age > self.p['leaving_age'] \
+                and ind.with_parents \
+                and not ind.partner \
+                and self.rng.random() < self.p_adj['leaving_probs'][index]:
+            self.P.leave_home(t, ind)
+
+        # DIVORCE:
+        elif self.p['divorce_age'] < ind.age < self.p['divorce_age_max'] \
+                and ind.partner \
+                and self.rng.random() < self.p_adj['divorce_probs'][index]:
+            self.P.separate_couple(t, ind)
+
+        # ELSE: individual has a quiet year...
+        return death, birth
+
 def proportional_sample(distribution, rng):
-    cul_prob = 1
-    for i, prob in enumerate(distribution):
-        if rng.random() < prob / cul_prob:
-            return i
-        cul_prob -= prob
-    return None
+    if 1 in distribution:
+        return distribution.index(1)
+    else:
+        cul_prob = 1
+        for i, prob in enumerate(distribution):
+            if rng.random() < prob / cul_prob:
+                return i
+            cul_prob -= prob
+        return None

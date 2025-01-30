@@ -88,12 +88,12 @@ class Acute(StateTimed):
 class Chronic(State):
     """Diseased state"""
 
-    def __init__(self, order, treatment_rate, death_rate, rng):
+    def __init__(self, order, treatment_rate, death_rate, rng, healthcare_access=[1]):
         super(Chronic, self).__init__(order, 'C', 'red')
         self.at_risk = False
         self.infectious = True
         self.current = set()
-        self.treat_rate = treatment_rate
+        self.modified_treat_rate = [treatment_rate * access for access in healthcare_access]
         self.death_rate = death_rate
         self.rng = np.random.RandomState(rng.randint(0, 99999999))
 
@@ -102,8 +102,10 @@ class Chronic(State):
         if self.rng.random() < self.death_rate:
             # die
             pass
-        elif self.rng.random() < self.treat_rate:
-            ind.next_state = states['T']
+        else:
+            comm = ind.groups['community']
+            if self.rng.random() < self.modified_treat_rate[comm]:
+                ind.next_state = states['T']
 
 
 

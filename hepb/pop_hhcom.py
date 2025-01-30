@@ -80,8 +80,6 @@ class PopHHCom(PopHH):
 
         # remove dead individual from household and population 
         self._remove_individual_from_hh(t, ind, 'd', "Member died")
-        print(f't: {t}, groups: {ind.groups}')
-        self.remove_individual_from_group('community', ind)
 
         self.remove_individual(ind)
 

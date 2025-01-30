@@ -92,8 +92,8 @@ cur_df <- h5read(path, "population/age_dists", compoundAsDataFrame=FALSE)
 cur_df <- cur_df[["dist"]][,200]
 
 growth_rates = c("0")
-duration = 200
-age_df <- load_age_data(no_runs=10, duration=duration) |>
+duration = 100
+age_df <- load_age_data(no_runs=7, duration=duration) |>
   mutate(Source = "synthetic") |>
   subset(select=c("age_group", "pop", "Source", "growth_rate"))
 
@@ -131,7 +131,7 @@ divorce_probs = c("0.01")
 real_hh_df <- data.frame(hh_per=c(0.28,0.49,0.19,0.04)) |>
   mutate(size_ed = c("1", "2-3", "4-5", "6+"), Source="data")
 
-df_hh <- load_hh_data(no_runs = 10, duration=190) |>
+df_hh <- load_hh_data(no_runs = 10, duration=100) |>
   group_by(cprob, lprob, dprob, size_ed) |>
   summarise(hh_per=mean(hh_per), Source="synthetic", .groups='drop')
 
