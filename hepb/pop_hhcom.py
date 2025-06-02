@@ -45,6 +45,8 @@ class PopHHCom(PopHH):
         new_ind = super(PopHHCom, self).birth(t, mother, sex)
         com_id = mother.groups['community']
         self.add_individuals_to_group('community', com_id, [new_ind])
+
+        new_ind.origin = mother.origin
         
         return new_ind
 

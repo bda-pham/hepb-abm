@@ -6,6 +6,7 @@ from disease.SEIR.exposure_SEIR_add import ExposureSEIRadd
 class ExposureHepB(ExposureSEIRadd):
     def __init__(self, p):
         super(ExposureHepB, self).__init__(p) 
+        self.acu_ht_prob = p['acu_ht_prob']
 
     def calc_foi_fast(self, t, ind, pop, comm_precomp, rng):
         """
@@ -23,8 +24,15 @@ class ExposureHepB(ExposureSEIRadd):
         hh_members = pop.groups['household'][ind.groups['household']]
 
         # list of infectious hh members (I_H)
-        hh_I = [x for x in hh_members if x.state.infectious]
-        hh_infectivity = len(hh_I)
+        hh_I = []
+        hh_infectivity = 0
+        for x in hh_members:
+            hh_I.append(x)
+        for x in hh_I:
+            if x.state.label == "C":
+                hh_infectivity += 1
+            elif x.state.label == 'A':
+                hh_infectivity += 0.7
         N_sub_1 = len(hh_members) - 1
 
         # proportion/count of household members infectious (I_H / (N_H - 1)^alpha)
@@ -33,7 +41,7 @@ class ExposureHepB(ExposureSEIRadd):
         hh = self.q_h * hh_I_prop
         # calculate community contribution
         # (uses pre-computed values for \sum_j (\eta_{ij} I_j / N_j) )
-        comm = self.q * comm_precomp['A'][ind.age]
+        comm = self.q * (comm_precomp['A'][ind.groups['community']][ind.age]*self.acu_ht_prob + comm_precomp['C'][ind.groups['community']][ind.age])
         # print(comm_precomp['I'][ind.age])
 
         # combined exposure is sum of household and community

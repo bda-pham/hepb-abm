@@ -11,8 +11,9 @@ from math import exp
 from collections import defaultdict
 
 from hepb.pop_hhcom import PopHHCom
+from hepb.constants import Origin
 from disease.general.sim_epi import SimEpi
-from disease.general.ind_epi import IndEpi
+from hepb.ind_com import IndCom
 from population.household import Household
 from population.pop_gen import allocate_couples, split_age_probs, duplicate_household
 from population.utils import sample_table, load_probs, \
@@ -80,6 +81,7 @@ def gen_hh_com_age_structured_pop(pop, pop_size, comm_dist, hh_probs, age_probs_
                     cur_age = sample_table(cur_prob, rng)
                     cur_ind = pop.add_individual(
                         cur_age, sex, adam=True, logging=pop.logging)
+                    cur_ind.origin = Origin.THAI
                     if pop.logging:
                         cur_ind.add_log(0, 'f', "Individual (bootstrap)")
                     cur_hh.append(cur_ind)
@@ -118,7 +120,7 @@ class SimEpiCom(SimEpi):
 
     """
 
-    def __init__(self, p, disease, rng, ind_type=IndEpi):
+    def __init__(self, p, disease, rng, ind_type=IndCom):
         super(SimEpiCom, self).__init__(p, disease, rng, ind_type)
         self.imm_residue = 0
  
@@ -137,7 +139,7 @@ class SimEpiCom(SimEpi):
     def _load_demographic_data(self):
         super(SimEpiCom, self)._load_demographic_data()
         self.mobility_rates = [[_adjust_prob(r, self.p['t_per_year']) for r in rates] for rates in self.p["mobility_rates"]]
-
+        self.origin_mobility = self.p["origin_mobility"].copy()
 
     def _choose_partner(self, ind):
         """
@@ -162,8 +164,22 @@ class SimEpiCom(SimEpi):
                 and x.groups['community'] == ind.groups['community']
             ]
 
+            same_origin_candidates = [
+                x for x in candidates
+                if x.origin == ind.origin
+            ]
+
         # abort if no eligible partner exists
-        return None if not candidates else self.rng.choice(candidates)
+        if not candidates:
+            print(f"No eligible partner! origin: {ind.origin}, site: {ind.groups['community']}")
+            return None
+        else:
+            if same_origin_candidates:
+                partner = self.rng.choice(same_origin_candidates)
+            else:
+                partner = self.rng.choice(candidates)
+            # print(f'same origin? {partner.origin == ind.origin}')
+            return partner
 
     def _choose_household(self, ind):
         """
@@ -187,7 +203,62 @@ class SimEpiCom(SimEpi):
             tgt_hh = self.rng.sample(candidates, 1)[0]
         return tgt_hh
 
+    def _main_loop(self, year_begin, years, verbose=False):
+        """
+        Run simulation.
+        """
+        t_begin = int(year_begin * self.p['t_per_year'])
+        t_end = int((year_begin + years) * self.p['t_per_year'])
 
+        t_now = (year_begin + self.p['year_now']) * self.p['t_per_year']
+
+        if verbose:
+            self.start_time = time.time()
+            self.print_column_labels()
+            self.print_pop_numbers(t_begin)
+
+        self.disease.update_observers(t_begin, disease=self.disease, pop=self.P,
+                                      cases=[],
+                                      boosting=[],
+                                      introduction=False,
+                                      new_I=[], rng=self.rng)
+
+        for t in range(t_begin + 1, t_end + 1):
+            if t == t_now:
+                self.disease.comunity_access[0] = self.p['new_remote_access']
+                self.disease.comunity_access[1] = self.p['new_village_access']
+                self.disease.origin_access[Origin.MIGRANT] = self.p['new_migrant_access']
+                self.origin_mobility[Origin.MIGRANT] = self.p['new_migrant_mobility']
+                self.disease.set_annual_treatment_rate(self.p['new_treat_rate'])
+            # update demography (if required)
+            if self.p['update_demog']:  # and t%52==0:
+                births, deaths, imms, birthdays = self.update_all_demo(t)  # *52)
+                firstborns = len([x for x in births if x.birth_order == 1])
+                self.disease.firstborn_count += firstborns
+                self.disease.subsequent_count += (len(births) - firstborns)
+                # oh wow, really don't need to be doing THIS all the time!
+                # a) no point unless also reinitialising contact matrix;
+                # b) no point at all unless population structure is changing over time
+                # self.disease.cmatrix.update_age_classes(
+                #        births, deaths, imms, birthdays)
+                # if self.p['dyn_rates'] and t % (self.p['cm_update_years'] * self.p['t_per_year']) == 0:
+                if self.p['cm_update_years'] > 0 and t % (self.p['cm_update_years'] * self.p['t_per_year']) == 0:
+                    self._init_contact_matrix(t)
+                self.disease.bd_update(t, births, deaths, imms, self.rng)
+
+            # update disease
+            if self.disease.update(t, self.P, self.rng):
+                if verbose:
+                    self.print_pop_numbers(t)
+                break  # update returns true if halting upon fade out
+
+            if verbose:
+                self.print_pop_numbers(t)
+
+        if verbose:
+            self.print_column_labels()
+            self.end_time = time.time()
+            print("time:", self.end_time - self.start_time)
     
     def update_all_demo(self, t):
         """
@@ -203,17 +274,19 @@ class SimEpiCom(SimEpi):
         # movement between communities
         mobility_rates = self.mobility_rates[1:]
         for hh in self.P.groups['household'].values():
-            cur_com = hh[0].groups['community']
-            tar_com = proportional_sample(mobility_rates[cur_com], self.rng)
-            if tar_com is not None:
-                if tar_com == 0:
-                    # leave the region
-                    emigrants.extend(hh)
-                else:
-                    for ind in hh:
-                        self.P.remove_individual_from_group('community', ind)
-                    # print(f"Community: household moving from {cur_com} to {tar_com}")
-                    self.P.add_individuals_to_group('community', tar_com-1, hh)
+            mobility = self.origin_mobility[hh[0].origin]
+            if mobility > 0 and self.rng.random() < mobility:
+                cur_com = hh[0].groups['community']
+                tar_com = proportional_sample(mobility_rates[cur_com], self.rng)
+                if tar_com is not None:
+                    if tar_com == 0:
+                        # leave the region
+                        emigrants.extend(hh)
+                    else:
+                        for ind in hh:
+                            self.P.remove_individual_from_group('community', ind)
+                        # print(f"Community: household moving from {cur_com} to {tar_com}")
+                        self.P.add_individuals_to_group('community', tar_com-1, hh)
         for ind in emigrants:
             self.P.remove_individual(ind)
         
@@ -272,6 +345,8 @@ class SimEpiCom(SimEpi):
             new_hh_id = duplicate_household(self.P, t, hh_id)
             immigrants.extend(self.P.groups['household'][new_hh_id])
 
+        for ind in immigrants:
+            ind.origin = Origin.MIGRANT
         immigration_rates = self.mobility_rates[0][1:]
 
         if sum(immigration_rates) > 0:
@@ -309,6 +384,8 @@ class SimEpiCom(SimEpi):
             if mother == "error":
                 return "error", "error", "error", "error"
             new_ind = self.P.birth(t, mother, 0 if self.rng.random() < 0.5 else 1)
+            if len(new_ind.parents) > 1:
+                new_ind.origin = new_ind.parents[0].origin if self.rng.random() < 0.5 else new_ind.parents[1].origin
             births.append(new_ind)
 
         # set comm of immigrants
@@ -316,7 +393,8 @@ class SimEpiCom(SimEpi):
         ##############
 
         # print(f'immigrants {len(immigrants)}, emigrants {len(emigrants)}, births {len(births)}, deaths {len(deaths)}')
-        # print(f't: {t}, communities: { {k:len(comm) for k, comm in self.P.groups["community"].items()}}, total: {len(self.P.I)}')
+        
+        print(f't: {t}, communities: { {k:{origin.name:sum(ind.origin==origin for ind in comm) for origin in Origin} for k, comm in self.P.groups["community"].items()}}, total: {len(self.P.I)}')
         return births, deaths, immigrants, birthdays
     
     def _update_individual_demo(self, t, ind, index=0):
@@ -330,7 +408,7 @@ class SimEpiCom(SimEpi):
 
         # DEATH / BIRTH:
         #if self.rng.random() > exp(-self.death_rates[ind.sex][ind.age][index]):
-        if self.rng.random() > exp(-self.death_rates[ind.sex][ind.age][0]):
+        if ind.dying or self.rng.random() > exp(-self.death_rates[ind.sex][ind.age][0]):
 
             # currently pregnant women are 'immune' from dying
             if ind in self.P.preg_current:

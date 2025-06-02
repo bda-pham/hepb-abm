@@ -92,10 +92,8 @@ cur_df <- h5read(path, "population/age_dists", compoundAsDataFrame=FALSE)
 cur_df <- cur_df[["dist"]][,200]
 
 growth_rates = c("0")
-duration = 100
-age_df <- load_age_data(no_runs=7, duration=duration) |>
-  mutate(Source = "synthetic") |>
-  subset(select=c("age_group", "pop", "Source", "growth_rate"))
+duration = 200
+
 
 real_age_df <- data.frame(pop=c(4.3, 5.1, 5.7, 6.1, 6.5, 7.2, 7.1, 7.1, 7.5, 7.4, 7.6, 7.3, 6.5, 5.2, 3.9, 2.5, 3.2)/100) |>
   mutate(age_group = row_number(), Source="data", growth_rate=growth_rates[1])
@@ -103,10 +101,10 @@ real_age_df$age_group <- age_df$age_group
 real_age_df_dup <- real_age_df[rep(seq_len(nrow(real_age_df)), each = 1), ] |>
   mutate(growth_rate=growth_rates[2])
 
-age_df_2 <- load_age_data(no_runs=10, duration=duration) |>
+age_df <- load_age_data(no_runs=10, duration=duration) |>
   mutate(Source = "synthetic") |>
-  filter(growth_rate==growth_rates[2]) |>
   subset(select=c("age_group", "pop", "Source", "growth_rate"))
+
 plot_age_df <- age_df |>
   rbind(real_age_df)
   #rbind(age_df_2, real_age_df_dup)
@@ -124,14 +122,14 @@ ggplot(plot_age_df, aes(x=age_group, y=pop*100, group=Source, fill=Source)) +
   #facet_grid(,vars(growth_rate)) +
   coord_flip()
 
-couple_probs = c("0.03")
-leaving_probs = c("0.01")
-divorce_probs = c("0.01")
+couple_probs = c("0.06")
+leaving_probs = c("0.005")
+divorce_probs = c("0.005")
 
 real_hh_df <- data.frame(hh_per=c(0.28,0.49,0.19,0.04)) |>
   mutate(size_ed = c("1", "2-3", "4-5", "6+"), Source="data")
 
-df_hh <- load_hh_data(no_runs = 10, duration=100) |>
+df_hh <- load_hh_data(no_runs = 10, duration=200) |>
   group_by(cprob, lprob, dprob, size_ed) |>
   summarise(hh_per=mean(hh_per), Source="synthetic", .groups='drop')
 
@@ -147,7 +145,7 @@ ggplot(plot_df, aes(x=size_ed, y=hh_per*100, group=Source, fill=Source)) +
   scale_fill_manual(values=c("red", "grey35")) +
   ylab("%") + xlab("Household size") +
   theme_minimal()
-rfggplot(filter(df_hh, dprob=="0.0005"), aes(x=size, y=hh_per)) +
+ggplot(filter(df_hh, dprob=="0.0005"), aes(x=size, y=hh_per)) +
   geom_bar(stat="identity", position="dodge", width=0.8) +
   scale_x_continuous(limits=c(0.5,14), breaks=seq(1,14,1)) +
   facet_grid(vars(lprob), vars(cprob)) +

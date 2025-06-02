@@ -1,4 +1,5 @@
 __author__ = 'ngeard'
+from hepb.constants import Origin
 
 p = {
     # directories
@@ -13,9 +14,9 @@ p = {
     'death_rates_m': 'death_rates_male.dat',
     'death_rates_f': 'death_rates_female.dat',
 
-    'couple_prob': 0.06,
+    'couple_prob': 0.06, # 0.09
     'leaving_prob': 0.005,
-    'divorce_prob': 0.001,
+    'divorce_prob': 0.001, # 0.005
     'couple_age': 15,
     'couple_age_max': 60,
     'leaving_age': 18,
@@ -27,15 +28,26 @@ p = {
     'birth_gap_mean': 270,
     'birth_gap_sd': 1,
 
-    'pop_size': 90,
+    'pop_size': 180,
     'growth_rate': 0.0,
     'imm_rate': 0,
 
-    'com_dist': [0.2, 0.8],
-    'mobility_rates': [[0, 1, 0],
-                       [0, 0.98, 0.02],
-                       [0, 0, 1]],
-    'healthcare_access': [0.2, 1],
+    'com_dist': [0.2, 0.2, 0.6],
+    'mobility_rates': [[0, 0.5, 0.5, 0],
+                       #[0, 0.5, 0.3, 0.2], old row 1
+                       [0, 0.65, 0.3, 0.05],
+                       [0, 0.3, 0.7, 0],
+                       [0, 0.05, 0, 0.95]],
+    'healthcare_access': [0.2, 1, 1],
+    'new_remote_access': 0.2,
+    'new_village_access': 1,
+    'thai_access': 1,
+    'migrant_access': 0.6,
+    'new_migrant_access': 0.6,
+    'thai_mobility': 0.02,
+    'migrant_mobility': 1,
+    'new_migrant_mobility': 1,
+    'cross_origin_couple_rate': 0.5,
 
     'preg': False,
     'use_parity': False,
@@ -58,23 +70,29 @@ p = {
 
     # disease model parameters. rates are annual
     'infectious_rate': 1.0/5,
+    'acu_ht_prob': 0.7,
     'acu_mtc_prob': 0.7,
     'chr_mtc_prob': 0.95,
-    'treat_rate': 0.009,
     'death_rate': 00.000189,
-    'imm_prevalence': 0.1,
+    # 'death_rate': 0,
+    'imm_prevalence': 0.03,
 
     # intervention parameters
-    'pmtct_cover': 0.5,
+    'pmtct_cover': 0.85,
     'vac_cover' : 0.95,
-    'treat_cover': 0.05,
+    'treat_rate': 0.05,
+    'new_treat_rate': 0.05,
 
-    'start_ratio': 0.2,
+    'start_ratio': 0.85,
+    'start_period': 25,
 
-    'q': 0.000,
+    'start_treat_ratio': 0.0,
+    'start_treat_period': 35,
+
+    'q': 0.000008,
     'q_nl': 2.7,
     'nl_power': 2,
-    'q_h': 0.25,
+    'q_h': 0.0001,
 
     'cover': 0.8,
 
@@ -82,25 +100,28 @@ p = {
 
     'external_exposure_rate': 0,#5e-6,
 
-    'random_seed': True,
+    'random_seed': False,
     'seed': 0,
     't_per_year': 13,
-    'years': [0, 40],
-    'burn_in': 100,
+    'years': [0, 60],
+    'year_now': 40,
+    'burn_in': 80,
     'burn_in_t_per_year': 1,
     'epi_burn_in': 60,
 
     'halt': False,
 
     # run parameters
-    'num_runs': 1,
-    'initial_cases': 1000,
+    'num_runs': 50,
+    'initial_cases': 220,
     'output_list': ['all'],
     'save_cp': True,
     'logging': False,
 }
 
 p['demo_burn'] = p['burn_in']# + p['epi_burn_in']
+p['origin_access'] = {Origin.THAI: p['thai_access'], Origin.MIGRANT: p['migrant_access']}
+p['origin_mobility'] = {Origin.THAI: p['thai_mobility'], Origin.MIGRANT: p['migrant_mobility']}
 
 
 
