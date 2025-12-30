@@ -17,6 +17,7 @@ from hepb.disease_hepb import DiseaseHepB
 from hepb.obs_states import StateObserver
 from hepb.obs_com import ComObserver
 from hepb.obs_children import ChildrenObserver
+from hepb.obs_incidence import IncidenceObserver
 
 from hepb.obs_prev import PrevalenceObserver
 from hepb.contact_matrix_prem import ContactMatrixPrem
@@ -33,7 +34,8 @@ class DiseaseModel(DiseaseHepB):
         super(DiseaseModel, self).__init__(p, cmatrix, rng, fname, mode)
         self.add_observers(ComObserver(self.h5file, self.state_labels()),
                            ChildrenObserver(self.h5file, self.state_labels(), age_max=5),
-                           PrevalenceObserver(self.h5file, self.state_labels(), ["C"]))    # observers track various statistics during sim
+                           PrevalenceObserver(self.h5file, self.state_labels(), ["C"]),
+                           IncidenceObserver(self.h5file))    # observers track various statistics during sim
 
 # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - #
 # - # - MAIN  - # - #
@@ -56,9 +58,12 @@ if __name__ == '__main__':
     # sweep parameters
     sweep_params = [
         {'name': 'new_migrant_access', 'values': [0.6]},
-        {'name': 'new_remote_access', 'values': [0.2]},
-        {'name': 'new_migrant_mobility', 'values': [0.5]}
-        # {'name': 'new_village_access', 'values': [0]}
+        {'name': 'new_remote_access', 'values': [0.5]},
+        {'name': 'new_migrant_mobility', 'values': [1]},
+        {'name': 'new_village_access', 'values': [1]},
+        {'name': 'new_treat_rate', 'values': [0.075]},
+        {'name': 'separate_growth', 'values': [True]},
+        {'name': 'projected_fertility', 'values': [True]}
     ]
 
     # generate parameter combinations (converting iterator to list)

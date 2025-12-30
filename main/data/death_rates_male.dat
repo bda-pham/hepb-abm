@@ -1,4 +1,4 @@
-# death rates (male) - taken from Ethiopia life tables, 2011 (WHO)
+# death rates (male) - taken from Thailand life tables, 2015 (WHO)
 # columns:
 #   0=age
 #   1=death rate (proportion of individuals dying between age x and age x+1
@@ -102,4 +102,4 @@
 97 0.129648151
 98 0.129648151
 99 0.129648151
-100 1
+100 100

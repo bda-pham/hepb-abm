@@ -1,23 +1,23 @@
 """
 A stub for testing/evaluating dynamic demography simulations.
 """
-repo_path = 'D:work/hepb'
+repo_path = 'D:/work/hepb'
 import os, sys
 sys.path.append(os.path.join(repo_path, 'simodd-pop'))
 sys.path.append(os.path.join(repo_path, 'simodd-dis'))
 sys.path.append(os.path.join(repo_path, 'simodd-hepb'))
 
 
-from population.simulation import Simulation
 from disease.general.contact_matrix import ContactMatrix
 from population.utils import create_path
-from observers.obs_pop import PopulationObserver
+from hepb.obs_pop import PopulationObserver
 # from pop_explore.output_pop import *
 from disease.experiments.param_combo import ParamComboIt
 from params import p
 from hepb.simulation_com import SimEpiCom
 from hepb.disease_hepb import DiseaseHepB
 from random import Random
+from hepb.constants import Origin
 
 def run_single(p, cur_seed):
     create_path(p['prefix'])
@@ -28,7 +28,7 @@ def run_single(p, cur_seed):
     rng = Random(cur_seed)
     disease = DiseaseHepB(p, ContactMatrix(), rng, p['prefix']+"/population.hd5", mode='w')
     sim = SimEpiCom(p, disease, rng)
-    sim.add_observers(PopulationObserver(sim.h5file))
+    sim.add_observers(PopulationObserver(sim.h5file, origin=Origin.THAI), PopulationObserver(sim.h5file, origin=Origin.MIGRANT))
 
     # print("Running simulation...")
     # print("iter\tyears\tdays\tpeople\thouses\tbirths\tdeaths\tmigrants")
@@ -57,14 +57,19 @@ if __name__ == '__main__':
     #     {'name': 'divorce_prob', 'values': [0.001]}
     # ]
     sweep_params = [
-        {'name': 'couple_prob', 'values': [0.06]},
-        {'name': 'leaving_prob', 'values': [0.005]},
-        {'name': 'divorce_prob', 'values': [0.001]}
+        # {'name': 'couple_prob', 'values': [0.09]},
+        # {'name': 'leaving_prob', 'values': [0.005]},
+        # {'name': 'divorce_prob', 'values': [0.005]}
         # {'name': 'growth_rate', 'values': [0]}
+        # {'name': 'younger_migrant', 'values': [False]},
+        {'name': 'generation_threshold', 'values': [2]},
+        {'name': 'max_migrant_age', 'values': [101]},
+        {'name': 'separate_growth', 'values': [True]}
+        # {'name': 'use_fertility', 'values': [True]}
     ]
     p['t_per_year'] = p['burn_in_t_per_year']
     
-    p['num_runs'] = 10
+    p['num_runs'] = 5
 
     # generate parameter combinations (converting iterator to list)
     param_combos = list(ParamComboIt(p, sweep_params))

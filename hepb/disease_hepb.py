@@ -36,6 +36,7 @@ class DiseaseHepB(DiseaseBase):
         rec = Recovered(3)
         tre = Treated(4)
         vac = Vaccinated(5)
+        self.migrant_comm_id = p['migrant_comm_id']
         
         self.add_states(sus, acu, chr, rec, tre, vac)
 
@@ -93,7 +94,8 @@ class DiseaseHepB(DiseaseBase):
             ind.next_state = self.states[self.basic_susceptible]
             self.tick(t, ind)
         if not seed_inds:
-            seed_inds = rng.sample(list(P.I.values()), cases)
+            main_pop = [ind for ind in P.I.values() if ind.groups['community'] != self.migrant_comm_id]
+            seed_inds = rng.sample(main_pop, cases)
         for ind in seed_inds:
             ind.next_state = self.states[self.basic_infection]
             ind.source = -3
@@ -121,6 +123,10 @@ class DiseaseHepB(DiseaseBase):
         universal_pmtct_cover = cover_level * self.pmtct_cover
         universal_vac_cover = cover_level * self.vac_cover
         for ind in births:
+            if ind.groups['community'] == self.migrant_comm_id:
+                ind.next_state = self.states[self.basic_susceptible]
+                self.tick(t, ind)
+                continue
             mother = [p for p in ind.parents if p.sex == 0]
             ind.next_state = self.states[self.basic_susceptible]
             community = ind.groups['community']
@@ -149,8 +155,6 @@ class DiseaseHepB(DiseaseBase):
                 elif ind.next_state == self.states["A"] and rng.random() < modified_vac_cover / 2:
                     ind.next_state = self.states['V']
             self.tick(t, ind)
-        
-        
 
         for ind in deaths:
             if ind.state:
@@ -161,7 +165,7 @@ class DiseaseHepB(DiseaseBase):
         self.birth_count = len(births)
         self.death_count = len(deaths)
 
-        # print(f"t: {t} -- Prevalence: {prev}")
+        print(f"t: {t} -- Prevalence: {prev}")
 
     def update(self, t, P, rng):
         cover_level = min(1, self.start_treat_ratio + (1-self.start_treat_ratio) * (t - self.start_t) / (self.max_treat_cover_t - self.start_t))
@@ -202,7 +206,7 @@ class DiseaseHepB(DiseaseBase):
                     pop_at_risk.update([x for x in self.cnetwork.get_contacts(P, P.I[cur_I]) if x.state.at_risk])
         else:
             # population at risk consists of potentially everybody
-            pop_at_risk = [x for x in P.I.values() if x.state.at_risk]
+            pop_at_risk = [x for x in P.I.values() if x.groups['community'] != self.migrant_comm_id and x.state.at_risk]
             # compute exposure from community:
             # comm is the force of infection arising from infection in the community
             # EC[i] is a vector containing the contact rates between an individual in age group i
@@ -217,9 +221,10 @@ class DiseaseHepB(DiseaseBase):
             total = {community: [0]*len(self.cmatrix.age_classes) for community in self.communities}
             
             for ind in P.I.values():
-                if ind.state.infectious:
-                    by_age[ind.state.label][ind.groups['community']][self.cmatrix.age_map[ind.age]] += 1
-                total[ind.groups['community']][self.cmatrix.age_map[ind.age]] += 1
+                if ind.groups['community'] != self.migrant_comm_id:
+                    if ind.state.infectious:
+                        by_age[ind.state.label][ind.groups['community']][self.cmatrix.age_map[ind.age]] += 1
+                    total[ind.groups['community']][self.cmatrix.age_map[ind.age]] += 1
             
             for label in self.infectious_states:
                 comm[label] = {}

@@ -1,4 +1,4 @@
 numpy
 pandas
 tables
-pylab
+matplotlib
