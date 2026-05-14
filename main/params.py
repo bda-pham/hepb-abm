@@ -45,9 +45,12 @@ p = {
     'com_dist': [0.2, 0.2, 0.6],
     'mobility_rates': [[0, 0.5, 0.5, 0],
                        #[0, 0.5, 0.3, 0.2], old row 1
-                       [0, 0.65, 0.3, 0.05],
-                       [0, 0.3, 0.7, 0],
-                       [0, 0.05, 0, 0.95]],
+                    #    [0, 0.65, 0.3, 0.05],
+                    #    [0, 0.3, 0.7, 0],
+                    #    [0, 0.05, 0, 0.95]],
+                       [0, 0.0, 0.3, 0.05],
+                       [0, 0.3, 0.0, 0],
+                       [0, 0.05, 0, 0.0]],
     'healthcare_access': [0.5, 1, 1],
     'new_remote_access': 0.5,
     'new_village_access': 1,
@@ -65,6 +68,7 @@ p = {
     'generation_threshold': 1,
     'separate_growth': True,
     'separate_death': True,
+    'projected_fertility': False,
 
     'preg': False,
     'use_parity': False,
@@ -100,6 +104,10 @@ p = {
     'vac_cover' : 0.98,
     'treat_rate': 0.075,
     'new_treat_rate': 0.075,
+    # 'pmtct_cover': 0.0,
+    # 'vac_cover' : 0.0,
+    # 'treat_rate': 0.0,
+    # 'new_treat_rate': 0.0,
 
     'start_ratio': 0.80,
     'start_period': 20,
@@ -108,6 +116,7 @@ p = {
     'start_treat_period': 40,
 
     'q': 0.0000046,
+    # 'q_annual_reduction_factor': 0.99,
     'q_nl': 2.7,
     'nl_power': 2,
     'q_h': 0.0001,
@@ -120,6 +129,7 @@ p = {
 
     'random_seed': False,
     'seed': 0,
+    'seed_start_index': 0,
     't_per_year': 13,
     'years': [0, 60],
     'year_now': 40,
@@ -130,12 +140,13 @@ p = {
     'halt': False,
 
     # run parameters
-    'num_runs': 10,
+    'num_runs': 50,
     'initial_cases': 145,
     'output_list': ['all'],
     'save_cp': True,
     'logging': False,
 }
+
 
 p['demo_burn'] = p['burn_in']# + p['epi_burn_in']
 p['origin_access'] = {Origin.THAI: p['thai_access'], Origin.MIGRANT: p['migrant_access']}

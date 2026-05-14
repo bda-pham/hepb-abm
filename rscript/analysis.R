@@ -59,7 +59,6 @@ load_data_from_name <- function(file_name, burnin=140, t_per_year=13, t_offset =
   cur_df <- cur_df |>
     group_by(year, state, origin, Site) |>
     summarise(count = count, total = total)
-  print(typeof(cur_df))
   cur_df
 }
 
@@ -115,7 +114,7 @@ load_incidence_data <- function(m_access=0.6, r_access=0.5, m_mobility=1, v_acce
              n_t_r=treat_rate, sg=separate_growth, pf=projected_fertility,
              seed=seed, year_sum = 1984+as.numeric(cut(year, breaks=c(0, seq(1984,2044,1)),
                                                        right=FALSE, labels=seq(1984,2044,1)))) |>
-      group_by(m_a, r_a, m_m, n_v_a, n_t_r, sg, pf, year_sum, seed) |>
+      group_by(m_a, r_a, m_m, n_v_a, n_t_r, sg, pf, year_sum, route, seed) |>
       summarise(infections = sum(infections))
     if (is.null(data)) {
       data <- df
@@ -134,120 +133,148 @@ plot_prevalence <- function(prevalence_df, title="", duration=40) {
     theme_minimal()
   plot
 }
-setwd(here())
 
-real_prev <- data.frame(matrix(ncol = 6, nrow = 0))
-x <- c("year", "prevalence", "q05", "q95", "Source", "author")
-colnames(real_prev) <- x
-real_prev[nrow(real_prev)+1,] = list(year=1983, prevalence=0.1418, q05=0.1092, q95=0.1798, Source="data", author="Brown et al")
-real_prev[nrow(real_prev)+1,] = list(year=1989, prevalence=0.0857, q05=0.0538, q95=0.1280, Source="data", author="Phuapradit et al")
-real_prev[nrow(real_prev)+1,] = list(year=1994, prevalence=0.0471, q05=0.0318, q95=0.0669, Source="data", author="Suwanagool et al")
-real_prev[nrow(real_prev)+1,] = list(year=1990, prevalence=0.1163, q05=0.1007, q95=0.1333, Source="data", author="Kozik et al")
-real_prev[nrow(real_prev)+1,] = list(year=1998, prevalence=0.1018, q05=0.0798, q95=0.1217, Source="data", author="Ishida et al")
-real_prev[nrow(real_prev)+1,] = list(year=1999, prevalence=0.0815, q05=0.0598, q95=0.1078, Source="data", author="Pichainarong et al")
-real_prev[nrow(real_prev)+1,] = list(year=2000, prevalence=0.0850, q05=0.0503, q95=0.1326, Source="data", author="Wiwanitkit")
-real_prev[nrow(real_prev)+1,] = list(year=2003, prevalence=0.0860, q05=0.0650, q95=0.1070, Source="data", author="Jutavijittum et al")
-real_prev[nrow(real_prev)+1,] = list(year=2003, prevalence=0.0643, q05=0.0577, q95=0.0714, Source="data", author="Thanachartwet et al")
-real_prev[nrow(real_prev)+1,] = list(year=2004, prevalence=0.0396, q05=0.0349, q95=0.0448, Source="data", author="Chongsrisawat et al")
-real_prev[nrow(real_prev)+1,] = list(year=2009, prevalence=0.0494, q05=0.0472, q95=0.0516, Source="data", author="Sangrajrang et al")
-real_prev[nrow(real_prev)+1,] = list(year=2014, prevalence=0.0348, q05=0.0301, q95=0.0395, Source="data", author="Posuwan et al")
-real_prev[nrow(real_prev)+1,] = list(year=2024, prevalence=0.0168, q05=0.0135, q95=0.0201, Source="data", author="Nilyanimit et al")
-
-cali_df <- load_all_data(no_runs=5, separate_growth="True", projected_fertility="False", chronic_only=FALSE, burn_in=140)
-
-cali_plot_df <-  filter(cali_df, state=="Chronic", year_sum<=2024, origin=="Thai") |>
-  group_by(year_sum, origin, seed) |>
-  summarise(count=sum(count), total=sum(total)) |>
-  mutate(prev=count/total) |>
-  group_by(year_sum, origin) |>
-  summarise(count=mean(count), total=mean(total), prev_mean=mean(prev), q05=quantile(prev, 0.025), q95=quantile(prev, 0.975))
-ggplot(cali_plot_df) +
-  geom_line(aes(x=year_sum, y=100*prev_mean), linewidth=0.8, colour="grey35") +
-  geom_point(data=real_prev, aes(x=year, y=prevalence*100), size=1.5, colour="turquoise3") +
-  geom_errorbar(data=real_prev, aes(x=year, ymin=q05*100, ymax=q95*100), width=.2,
-                position=position_dodge(.9), colour="turquoise3") +
-  geom_ribbon(aes(x=year_sum, ymin=100*q05, ymax=100*q95), alpha=0.3, fill="grey35", colour=NA) +
-  scale_y_continuous("Prevalence (%)", expand = c(0, 0)) +
-  coord_cartesian(ylim=c(0,18)) +
-  xlab("Year") +
-  geom_vline(xintercept=2024, linetype=3) +
-  geom_text(aes(x=2024, label="present \n", y=12), colour="black", angle=90) +
-  theme_minimal() +
-  theme(legend.position="top")
-
-cali_plot_df <-  filter(cali_df, state=="Chronic", year_sum<=2024) |>
-  group_by(year_sum, Site, seed) |>
-  summarise(count=sum(count), total=sum(total)) |>
-  mutate(prev=count/total) |>
-  group_by(year_sum, Site) |>
-  summarise(count=mean(count), total=mean(total), prev_mean=mean(prev), q05=quantile(prev, 0.25), q95=quantile(prev, 0.75))
-ggplot(cali_plot_df) +
-  geom_line(aes(x=year_sum, y=100*prev_mean, colour=Site), linewidth=1) +
-  geom_point(data=real_prev, aes(x=year, y=prevalence*100), size=2) +
-  geom_ribbon(aes(x=year_sum, ymin=100*q05, ymax=100*q95, fill=Site), alpha=0.2) +
-  scale_y_continuous("Prevalence (%)", expand = c(0, 0)) +
-  coord_cartesian(ylim=c(0,15)) +
-  xlab("Year") +
-  geom_vline(xintercept=2024, linetype=3) +
-  geom_text(aes(x=2024, label="present \n", y=12), colour="black", angle=90) +
-  theme_minimal()
-
-pop_cali_df <- load_cf_data(no_runs=1, v_access=c(0), chronic_only=FALSE, burn_in = 140)
-
-pop_cali_plot_df <- filter(pop_cali_df, state=="Chronic") |>
-  group_by(year_sum, Site, origin) |>
-  summarise(total=mean(total), q05=quantile(total, 0.25), q95=quantile(total, 0.75))
-ggplot(pop_cali_plot_df, aes(y=total*2, x=year_sum, fill=origin)) +
-  geom_area() +
-  facet_wrap(~ Site, ncol=3) +
-  xlab("Year") +
-  ylab("Population") +
-  scale_x_discrete(expand = c(0, 0), limits = c(1985,2005, 2025, 2045)) +
-  coord_cartesian(xlim=c(1985,2045)) +
-  theme_minimal() +
-  theme(legend.position="top",
-        axis.text.x = element_text(size=8, angle=45, hjust=1, vjust=1),
-        panel.spacing = unit(1.2, "lines"))
+plot_prev_cali <- function() {
+  real_prev <- data.frame(matrix(ncol = 6, nrow = 0))
+  x <- c("year", "prevalence", "q05", "q95", "Source", "author")
+  colnames(real_prev) <- x
+  real_prev[nrow(real_prev)+1,] = list(year=1983, prevalence=0.1418, q05=0.1092, q95=0.1798, Source="data", author="Brown et al")
+  real_prev[nrow(real_prev)+1,] = list(year=1989, prevalence=0.0857, q05=0.0538, q95=0.1280, Source="data", author="Phuapradit et al")
+  real_prev[nrow(real_prev)+1,] = list(year=1994, prevalence=0.0471, q05=0.0318, q95=0.0669, Source="data", author="Suwanagool et al")
+  real_prev[nrow(real_prev)+1,] = list(year=1990, prevalence=0.1163, q05=0.1007, q95=0.1333, Source="data", author="Kozik et al")
+  real_prev[nrow(real_prev)+1,] = list(year=1998, prevalence=0.1018, q05=0.0798, q95=0.1217, Source="data", author="Ishida et al")
+  real_prev[nrow(real_prev)+1,] = list(year=1999, prevalence=0.0815, q05=0.0598, q95=0.1078, Source="data", author="Pichainarong et al")
+  real_prev[nrow(real_prev)+1,] = list(year=2000, prevalence=0.0850, q05=0.0503, q95=0.1326, Source="data", author="Wiwanitkit")
+  real_prev[nrow(real_prev)+1,] = list(year=2003, prevalence=0.0860, q05=0.0650, q95=0.1070, Source="data", author="Jutavijittum et al")
+  real_prev[nrow(real_prev)+1,] = list(year=2003, prevalence=0.0643, q05=0.0577, q95=0.0714, Source="data", author="Thanachartwet et al")
+  real_prev[nrow(real_prev)+1,] = list(year=2004, prevalence=0.0396, q05=0.0349, q95=0.0448, Source="data", author="Chongsrisawat et al")
+  real_prev[nrow(real_prev)+1,] = list(year=2009, prevalence=0.0494, q05=0.0472, q95=0.0516, Source="data", author="Sangrajrang et al")
+  real_prev[nrow(real_prev)+1,] = list(year=2014, prevalence=0.0348, q05=0.0301, q95=0.0395, Source="data", author="Posuwan et al")
+  real_prev[nrow(real_prev)+1,] = list(year=2024, prevalence=0.0168, q05=0.0135, q95=0.0201, Source="data", author="Nilyanimit et al")
   
+  cali_df <- load_all_data(no_runs=5, separate_growth="True", projected_fertility="False", chronic_only=FALSE, burn_in=140)
+  
+  cali_plot_df <-  filter(cali_df, state=="Chronic", year_sum<=2024, origin=="Thai") |>
+    group_by(year_sum, origin, seed) |>
+    summarise(count=sum(count), total=sum(total)) |>
+    mutate(prev=count/total) |>
+    group_by(year_sum, origin) |>
+    summarise(count=mean(count), total=mean(total), prev_mean=mean(prev), q05=quantile(prev, 0.025), q95=quantile(prev, 0.975))
+  ggplot(cali_plot_df) +
+    geom_line(aes(x=year_sum, y=100*prev_mean), linewidth=0.8, colour="grey35") +
+    geom_point(data=real_prev, aes(x=year, y=prevalence*100), size=1.5, colour="turquoise3") +
+    geom_errorbar(data=real_prev, aes(x=year, ymin=q05*100, ymax=q95*100), width=.2,
+                  position=position_dodge(.9), colour="turquoise3") +
+    geom_ribbon(aes(x=year_sum, ymin=100*q05, ymax=100*q95), alpha=0.3, fill="grey35", colour=NA) +
+    scale_y_continuous("Prevalence (%)", expand = c(0, 0)) +
+    coord_cartesian(ylim=c(0,18)) +
+    xlab("Year") +
+    geom_vline(xintercept=2024, linetype=3) +
+    geom_text(aes(x=2024, label="present \n", y=12), colour="black", angle=90) +
+    theme_minimal() +
+    theme(legend.position="top")
+}
 
+plot_pop_ratio <- function() {
+  pop_cali_df <- load_all_data(obs="community", no_runs=1, separate_growth="False", projected_fertility="False")
+  
+  pop_cali_plot_df <- filter(pop_cali_df, state=="Chronic") |>
+    group_by(year_sum, Site, origin) |>
+    summarise(total=mean(total), q05=quantile(total, 0.25), q95=quantile(total, 0.75))
+  ggplot(pop_cali_plot_df, aes(y=total*2, x=year_sum, fill=origin)) +
+    geom_area() +
+    facet_wrap(~ Site, ncol=3) +
+    xlab("Year") +
+    ylab("Population") +
+    scale_x_discrete(expand = c(0, 0), limits = c(1985,2005, 2025, 2045)) +
+    coord_cartesian(xlim=c(1985,2045)) +
+    theme_minimal() +
+    theme(legend.position="top",
+          axis.text.x = element_text(size=8, angle=45, hjust=1, vjust=1),
+          panel.spacing = unit(1.2, "lines"))
+}
 
+load_all_scenarios <- function(observer, no_runs) {
+  base_df <- load_all_data(obs=observer, no_runs=no_runs, separate_growth="True", projected_fertility="False") |>
+    mutate(Scenario="Base")
+  
+  imra_df <- load_all_data(obs=observer, no_runs=no_runs, m_access=0.9, r_access=0.75,
+                           separate_growth="True", projected_fertility="False") |>
+    mutate(Scenario="Improved migrant & border access")
+  
+  rm_df <- load_all_data(obs=observer, no_runs=no_runs, m_mobility=0.5,
+                         separate_growth="True", projected_fertility="False") |>
+    mutate(Scenario="Reduced mobility")
+  
+  cf_df <- load_all_data(obs=observer, no_runs=no_runs, v_access=0.5,
+                         separate_growth="True", projected_fertility="False") |>
+    mutate(Scenario="Reduced border access")
+  
+  tr_df <- load_all_data(obs=observer, no_runs=no_runs, treat_rate=0.105,
+                         separate_growth="True", projected_fertility="False") |>
+    mutate(Scenario="Improved treatment")
+  
+  fer_df <- load_all_data(obs=observer, separate_growth="True", projected_fertility="True", no_runs=50, burn_in = 140) |>
+    mutate(Scenario="Change in fertility")
+  
+  all_df <- rbind(base_df, imra_df, rm_df, cf_df, tr_df, fer_df)
+  all_df
+}
 
-obs <- 
+setwd(here())
+plot_prev_cali()
+
+plot_pop_ratio()
+  
 test <- load_data_from_name("params_new_migrant_access=0.6_new_remote_access=0.2_new_migrant_mobility=1/disease_160_220", burnin = 160, obs=obs)
 
 
 
-base_df <- load_all_data(obs="children", no_runs=50, separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Base")
 
-# ima_df <- load_all_data(obs=obs, no_runs=50, m_access=c(1), r_access=c(0.2), m_mobility = c(1)) |>
-#   mutate(Scenario="Improved migrant access")
-# 
-# ira_df <- load_all_data(obs=obs, no_runs=50, m_access=c(0.6), r_access=c(0.6), m_mobility = c(1)) |>
-  # mutate(Scenario="Improved remote access")
 
-imra_df <- load_all_data(obs="children", no_runs=50, m_access=0.9, r_access=0.75,
-                         separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Improved migrant & border access")
+cumvar <- function (x, sd = FALSE) {
+  x <- x - x[sample.int(length(x), 1)]  ## see Remark 2 below
+  n <- seq_along(x)
+  v <- (cumsum(x ^ 2) - cumsum(x) ^ 2 / n) / (n - 1)
+  if (sd) v <- sqrt(v)
+  v
+}
 
-rm_df <- load_all_data(obs="children", no_runs=50, m_mobility=0.5,
-                       separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Reduced mobility")
+base_child_df <- load_all_data(obs="children", no_runs=50, separate_growth="True", projected_fertility="False")
+base_com_df <- load_all_data(obs="community", no_runs=150, separate_growth="True", projected_fertility="False")
+base_child_df <- filter(base_child_df) |>
+  mutate(Population="Children 0-5 years old")
+base_com_df <- mutate(base_com_df, Population="All age groups")
 
-cf_df <- load_all_data(obs="children", no_runs=50, v_access=0.5,
-                      separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Reduced border access")
+convergence_child_df <- base_child_df |>
+  group_by(year_sum, state, Population, seed) |>
+  summarise(total=sum(total), count=sum(count)) |>
+  mutate(seed=sample(seed), Site="All sites, all origins", origin="All origins", prev=count/total) |>
+  arrange(seed) |>
+  filter(year_sum==2044) |>
+  mutate(Mean = cummean(prev), Standard_Deviation = cumvar(prev, sd=TRUE)) |>
+  pivot_longer(cols = `Mean`:`Standard_Deviation`, 
+               names_to = "statistic",
+               values_to = "value")
+convergence_com_df <- base_com_df |>
+  group_by(year_sum, state, Population, seed) |>
+  summarise(total=sum(total), count=sum(count)) |>
+  mutate(seed=sample(seed), Site="All sites, all origins", origin="All origins", prev=count/total) |>
+  arrange(seed) |>
+  filter(year_sum==2044) |>
+  mutate(Mean = cummean(prev), Standard_Deviation = cumvar(prev, sd=TRUE)) |>
+  pivot_longer(cols = `Mean`:`Standard_Deviation`, 
+               names_to = "statistic",
+               values_to = "value")
+convergence_df <- rbind(convergence_child_df, convergence_com_df)
+ggplot(filter(convergence_df, seed %% 5 == 1 | seed==149)) + 
+  geom_line(aes(y=value*100, x=seed, group=statistic, colour=statistic)) + 
+  labs(x="Simulation runs", y="Prevalence (%) statistics") +
+  # Custom the Y scales:
+  theme_minimal() +
+  facet_wrap(~ Population)
 
-tr_df <- load_all_data(obs="children", no_runs=50, treat_rate=0.105,
-                         separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Improved treatment")
-
-fer_df <- load_all_data(obs="children", separate_growth="True", projected_fertility="True", no_runs=50, burn_in = 140) |>
-  mutate(Scenario="Change in fertility")
-
-all_df <- rbind(base_df, imra_df, rm_df, cf_df, tr_df, fer_df)
-all_child_df <- all_df
-
+all_child_df <- load_all_scenarios("children", 50)
 Thai_df <- all_child_df |>
   group_by(m_a, r_a, m_m, year_sum, state, Scenario, seed) |>
   summarise(total=sum(total), count=sum(count)) |>
@@ -338,28 +365,6 @@ ggarrange(legend, plots, nrow=2, heights=c(0.15, 1))
 
 sens_df = rbind(site_df, Thai_df)
 Thai_df <- mutate(Thai_df, Age="Children 0-5 years old")
-ggplot(filter(sens_df, 
-              Scenario=="Base"|
-                Scenario=="Improved treatment"|
-                Scenario=="Reduced mobility"|
-                Scenario=="Change in fertility"),
-       aes(x=as.numeric(year_sum), y=100*prev_mean, 
-           colour=Scenario, linetype=Scenario)) +
-  geom_line(linewidth=0.8) +
-  geom_ribbon(aes(ymin=100*q05, ymax=100*q95, fill=Scenario), alpha=0.25, colour=NA) +
-  scale_y_continuous("Prevalence (%)", expand = c(0, 0)) +
-  coord_cartesian(ylim=c(0,2)) +
-  scale_x_continuous("Year", limits = c(2024, NA)) +
-  scale_colour_manual(values=c("grey30", "steelblue", "salmon", "mediumpurple"))+
-  scale_fill_manual(values=c("grey30", "steelblue", "salmon", "mediumpurple"))+
-  scale_linetype_manual(values=c("solid", "solid", "solid", "solid", "dotted"))+
-  geom_hline(yintercept=0.1, linetype=3) +
-  geom_text(aes(x=2025, label="0.1%", y=0.2), colour="black", size=2.8) +
-  theme_minimal() +
-  theme(legend.position="top",
-        axis.text.x = element_text(size=8, angle=45, hjust=1.2, vjust=1.5)) +
-  guides(colour=guide_legend(nrow=2,byrow=TRUE)) +
-  facet_wrap(~ Site, ncol=4)
 
 all_plot <- ggplot(filter(Thai_df, Scenario!="Improved migrant & border access"&Scenario!="Reduced border access"),
                    aes(x=as.numeric(year_sum), y=100*prev_mean, 
@@ -425,6 +430,34 @@ plots <- ggarrange(ggarrange("",all_plot,"", nrow=3, heights=c(1,2.4,1)),
                    ggarrange(site_plot, origin_plot, nrow=2, heights=c(1,1.1)), ncol=2, widths=c(1.2,2))
 ggarrange(legend, plots, nrow=2, heights=c(0.15, 1))
 
+# sensitivity analysis regarding mobility
+m05_df <- load_all_data(obs="children", no_runs=50, m_mobility=0.5,
+                       separate_growth="True", projected_fertility="False")
+m0_df <- load_all_data(obs="children", no_runs=50, m_mobility=0,
+                           separate_growth="True", projected_fertility="False")
+m15_df <- load_all_data(obs="children", no_runs=50, m_mobility=1.5,
+                           separate_growth="True", projected_fertility="False")
+m2_df <- load_all_data(obs="children", no_runs=50, m_mobility=2,
+                           separate_growth="True", projected_fertility="False")
+mobility_sensitivity <- rbind(m0_df, m05_df, base_child_df, m15_df, m2_df) |>
+  group_by(m_m, year_sum, state, seed) |>
+  summarise(total=sum(total), count=sum(count)) |>
+  mutate(m_m=factor(m_m), prev=count/total) |>
+  group_by(m_m, year_sum, state) |>
+  summarise(total=mean(total), count=mean(count), prev_mean=mean(prev), q05=quantile(prev, 0.25), q95=quantile(prev, 0.75))
+ggplot(mobility_sensitivity,
+                      aes(x=as.numeric(year_sum), y=100*prev_mean, colour=m_m, group=m_m)) +
+  geom_line(linewidth=1) +
+  geom_ribbon(aes(ymin=100*q05, ymax=100*q95, fill=m_m), alpha=0.25, colour=NA) +
+  scale_y_continuous("Prevalence (%)", expand = c(0, 0)) +
+  coord_cartesian(ylim=c(0, 1.5)) +
+  scale_x_continuous("Year", limits = c(2024, NA)) +
+  geom_hline(yintercept=0.1, linetype=3) +
+  labs(colour="Migrant mobility", fill="Migrant mobility") +
+  geom_text(aes(x=2026, label="0.1%", y=0.18), colour="black", size=3) +
+  theme_minimal() +
+  guides(colour=guide_legend(nrow=2,byrow=TRUE))
+
 base_com_df <- load_all_data(obs="community", no_runs=50, separate_growth="True", projected_fertility="False") |>
   mutate(Scenario="Base")
 
@@ -435,6 +468,7 @@ imra_com_df <- load_all_data(obs="community", no_runs=50, m_access=0.9, r_access
 rm_com_df <- load_all_data(obs="community", no_runs=50, m_mobility=0.5,
                        separate_growth="True", projected_fertility="False") |>
   mutate(Scenario="Reduced mobility")
+
 
 cf_com_df <- load_all_data(obs="community", no_runs=50, v_access=0.5,
                        separate_growth="True", projected_fertility="False") |>
@@ -559,67 +593,40 @@ plots <- ggarrange(ggarrange("",all_plot,"", nrow=3, heights=c(1,2.4,1)),
                    ggarrange(site_plot, origin_plot, nrow=2, heights=c(1,1.1)), ncol=2, widths=c(1.2,2))
 ggarrange(legend, plots, nrow=2, heights=c(0.15, 1))
 
-inc_base <- load_incidence_data(no_runs=10, separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Base")
-inc_imra <- load_incidence_data(no_runs=10, m_access=0.9, r_access=0.75,
-                             separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Improved migrant & border access")
+inc_base <- load_incidence_data(m_access=0, r_access=0, m_mobility=0, v_access=0, treat_rate=0,
+  no_runs=20, separate_growth="True", projected_fertility="False") |>
+  mutate(Scenario="No intervention", route=factor(as.integer(route)))
+inc_int <- load_incidence_data(
+                               no_runs=20, separate_growth="True", projected_fertility="False") |>
+  mutate(Scenario="With intervention", route=factor(as.integer(route)))
 
-inc_rm <- load_incidence_data(no_runs=10, m_mobility=0.5,
-                           separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Reduced mobility")
-
-inc_cf <- load_incidence_data(no_runs=10, v_access=0.5,
-                           separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Reduced border access")
-
-inc_tr <- load_incidence_data(no_runs=10, treat_rate=0.105,
-                           separate_growth="True", projected_fertility="False") |>
-  mutate(Scenario="Improved treatment")
-
-inc_fer <- load_incidence_data(no_runs=8,
-                                  separate_growth="True", projected_fertility="True") |>
-  mutate(Scenario="Change in fertility")
-all_inc <- rbind(inc_base, inc_imra, inc_cf, inc_rm, inc_tr, inc_fer)
-all_inc <- filter(all_inc, year_sum>=2024) |>
-  group_by(Scenario, seed) |>
+all_inc <- rbind(inc_base, inc_int)
+all_inc <- filter(all_inc, year_sum<2045) |>
+  group_by(Scenario, route, year_sum, seed) |>
   summarise(infections = sum(infections)) |>
-  group_by(Scenario) |>
-  summarise(inf_mean=mean(infections))
+  group_by(Scenario, route, year_sum) |>
+  summarise(inf_mean=mean(infections), q05=quantile(infections, 0.25), q95=quantile(infections, 0.75))
+# 
+# base_incidence <- all_inc$inf_mean[all_inc$Scenario=="Base"]
+# all_inc <- mutate(all_inc, inf_mean = (inf_mean-base_incidence)/base_incidence)
 
-base_incidence <- all_inc$inf_mean[all_inc$Scenario=="Base"]
-all_inc <- mutate(all_inc, inf_mean = (inf_mean-base_incidence)/base_incidence)
-
-ggplot(filter(all_inc, Scenario!="Base"),
-       aes(y=Scenario, x=inf_mean*100, 
-           fill=Scenario)) +
-  geom_col(width=0.7) +
-  scale_x_continuous("Incidence change (%)") +
-  coord_cartesian(xlim=c(-15,5)) +
-  scale_fill_manual(values=c("palegreen3", "orangered1", "steelblue", "tan3", "mediumpurple")) +
+ggplot(all_inc,
+       aes(y=inf_mean, x=year_sum, colour=route, group=route)) +
+  geom_line() +
+  geom_ribbon(aes(ymin=q05, ymax=q95, fill=route), alpha=0.25, colour=NA) +
+  scale_colour_discrete(
+    name = "Route", 
+    labels = c("Imm", "Vertical", "Horizontal - household", "Horizontal - community")
+  ) +
+  scale_fill_discrete(
+    name = "Route", 
+    labels = c("Imm", "Vertical", "Horizontal - household", "Horizontal - community")
+  ) +
   theme_minimal() +
-  theme(legend.position="none") +
-  guides(colour=guide_legend(nrow=2,byrow=TRUE))
+  theme(legend.position="bottom") +
+  guides(colour=guide_legend(nrow=1,byrow=TRUE)) +
+  facet_wrap(~ Scenario)
 
-heatmap_df <- load_all_data(obs="children", no_runs=50, m_access=c(0.6, 0.8, 1), r_access=c(0.4, 0.6, 0.8), m_mobility = c(1))
-heatmap_all_df <- filter(heatmap_df, year_sum==2045) |>
-  group_by(m_a, r_a, m_m, year_sum, state, origin, seed) |>
-  summarise(total=sum(total), count=sum(count)) |>
-  mutate(Site="All")
-heatmap_plot_df <- rbind(heatmap_df, heatmap_all_df)
-heatmap_plot_df <- filter(heatmap_plot_df, year_sum==2045) |>
-  group_by(m_a, r_a, m_m, year_sum, state, Site, seed) |>
-  summarise(total=sum(total), count=sum(count)) |>
-  mutate(prev=count/total) |>
-  group_by(m_a, r_a, m_m, year_sum, state, Site) |>
-  summarise(total=mean(total), count=mean(count), prev_mean=mean(prev), q05=quantile(prev, 0.25), q95=quantile(prev, 0.75))
-ggplot(heatmap_plot_df) +
-  geom_tile(aes(x=m_a, y=r_a, fill=prev_mean*100)) +
-  geom_text(aes(label=round(prev_mean*100,2), x=m_a, y=r_a, fontface = ifelse(round(prev_mean*100,2)<=0.1, "bold", "plain")),size=2.5) +
-  scale_fill_gradientn(colors=c("green", "white"), na.value="white") +
-  labs(x="Migrant access", y="Remote access", fill="Prevalence\n0-5 years old (%)") +
-  theme_minimal() +
-  facet_wrap(~ Site, ncol=2)
 
 ### age prevalence
 load_age_hh_prev_data_from_name <- function(file_name=NULL, mode="prev_age", duration=60, burn_in=160, year=40, t_per_year=13, t_offset=0) {

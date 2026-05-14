@@ -20,7 +20,7 @@ class Susceptible(State):
     def test_exposure(self, states, ind, foi, rng):
         if rng.random() < 1.0 - exp(-foi):
             ind.next_state = states['A']
-            return "boosting"
+            return "infection"
         else:
             return False
 

@@ -7,6 +7,8 @@ class ExposureHepB(ExposureSEIRadd):
     def __init__(self, p):
         super(ExposureHepB, self).__init__(p) 
         self.acu_ht_prob = p['acu_ht_prob']
+        # self.start_t = p['t_per_year'] * (p['burn_in'] + p['epi_burn_in'])
+        # self.reduction_factor = pow(p['q_annual_reduction_factor'], 1/p['t_per_year'])
 
     def calc_foi_fast(self, t, ind, pop, comm_precomp, rng):
         """
@@ -38,11 +40,12 @@ class ExposureHepB(ExposureSEIRadd):
         # proportion/count of household members infectious (I_H / (N_H - 1)^alpha)
         hh_I_prop = hh_infectivity / pow(N_sub_1, self.alpha) if N_sub_1 else 0
         # calculate household contribution
+        # q_h = self.q_h*self.reduction_factor^(t-self.start_t)
         hh = self.q_h * hh_I_prop
         # calculate community contribution
         # (uses pre-computed values for \sum_j (\eta_{ij} I_j / N_j) )
+        # q = self.q*self.reduction_factor^(t-self.start_t)
         comm = self.q * (comm_precomp['A'][ind.groups['community']][ind.age]*self.acu_ht_prob + comm_precomp['C'][ind.groups['community']][ind.age])
-        # print(comm_precomp['I'][ind.age])
 
         # combined exposure is sum of household and community
         combined = hh + comm

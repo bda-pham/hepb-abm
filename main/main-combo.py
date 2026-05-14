@@ -12,7 +12,7 @@ from disease.general.contact_matrix import ContactMatrix
 from disease.general.run import go_single
 from hepb.simulation_com import SimEpiCom
 
-from disease.experiments.param_combo import ParamComboIt
+from hepb.param_combo import ParamComboIt
 from hepb.disease_hepb import DiseaseHepB
 from hepb.obs_states import StateObserver
 from hepb.obs_com import ComObserver
@@ -57,18 +57,26 @@ if __name__ == '__main__':
 
     # sweep parameters
     sweep_params = [
+        # {'name': 'new_migrant_access', 'values': [0]},
+        # {'name': 'new_remote_access', 'values': [0]},
+        # {'name': 'new_migrant_mobility', 'values': [0]},
+        # {'name': 'new_village_access', 'values': [0]},
+        # {'name': 'new_treat_rate', 'values': [0]},
+        # {'name': 'separate_growth', 'values': [True]},
+        # {'name': 'projected_fertility', 'values': [False]}
         {'name': 'new_migrant_access', 'values': [0.6]},
         {'name': 'new_remote_access', 'values': [0.5]},
         {'name': 'new_migrant_mobility', 'values': [1]},
         {'name': 'new_village_access', 'values': [1]},
         {'name': 'new_treat_rate', 'values': [0.075]},
         {'name': 'separate_growth', 'values': [True]},
-        {'name': 'projected_fertility', 'values': [True]}
+        {'name': 'projected_fertility', 'values': [False]}
     ]
 
     # generate parameter combinations (converting iterator to list)
     param_combos = list(ParamComboIt(p, sweep_params))
     ethiopia_matrix = pd.read_csv('data/ethiopia-contact-matrix.csv', header=None).to_numpy()
+    
     # just for info, 
     print (len(param_combos))
     for x in param_combos:
@@ -77,8 +85,3 @@ if __name__ == '__main__':
         # then run simulation
         cmatrix = ContactMatrixPrem(given_matrix=ethiopia_matrix,smooth=False)
         go_single(x, DiseaseModel, cmatrix, x['seed'], sim_type=SimEpiCom, verbose=False)
-
-    # cmatrix = ContactMatrixPrem(given_matrix=ethiopia_matrix,smooth=False)
-    # go_single(p, DiseaseModel, cmatrix, p['seed'], sim_type=SimEpiCom, verbose=False)
-
-    

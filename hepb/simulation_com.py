@@ -327,7 +327,11 @@ class SimEpiCom(SimEpi):
             mobility = self.origin_mobility[hh[0].origin]
             if mobility > 0 and self.rng.random() < mobility:
                 cur_com = hh[0].groups['community']
-                tar_com = proportional_sample(mobility_rates[cur_com], self.rng)
+                if mobility > 1:
+                    hh_mob_rates = [mobility * m for m in mobility_rates[cur_com]]
+                else:
+                    hh_mob_rates = mobility_rates[cur_com]
+                tar_com = proportional_sample(hh_mob_rates, self.rng)
                 if tar_com is not None:
                     if tar_com == 0:
                         # leave the region
@@ -515,10 +519,9 @@ class SimEpiCom(SimEpi):
         # set comm of immigrants
         # immigration
         ##############
-
         # print(f'immigrants {len(immigrants)}, emigrants {len(emigrants)}, births {len(births)}, deaths {len(deaths)}')
         
-        print(f't: {t}, communities: { {k:{origin.name:sum(ind.origin==origin for ind in comm) for origin in Origin} for k, comm in self.P.groups["community"].items()}}, total: {len(self.P.I)}')
+        # print(f't: {t}, communities: { {k:{origin.name:sum(ind.origin==origin for ind in comm) for origin in Origin} for k, comm in self.P.groups["community"].items()}}, total: {len(self.P.I)}')
         return births, deaths, immigrants, birthdays
     
     def _choose_mother_with_origin(self, index, origin_distribution):

@@ -1,9 +1,11 @@
 from disease.general.disease_base import DiseaseBase
 from hepb.exposure_hepb import ExposureHepB
 from hepb.states_hepb import *
+from hepb.constants import Route
 from itertools import chain
 from statistics import mean
 from disease.general.duration import DurationGeneratorFixed
+
 
 class DiseaseHepB(DiseaseBase):
     def __init__(self, p, cmatrix, rng, fname, mode):
@@ -99,6 +101,7 @@ class DiseaseHepB(DiseaseBase):
         for ind in seed_inds:
             ind.next_state = self.states[self.basic_infection]
             ind.source = -3
+            ind.route = Route.UNKNOWN
             I_in_age, I_out_age = self.tick(t, ind)
             # if I_in_age is not None and I_in_age >= 0:
             #     self.by_age[ind.state.label][ind.groups['community']][self.cmatrix.age_map[I_in_age]] += 1
@@ -107,19 +110,26 @@ class DiseaseHepB(DiseaseBase):
         """
         Update state counts for births and deaths and immigration.
         
-        Currently immigrants are treated as arriving susceptible.
+        Entire immigrant households are assigned either Susceptible or Chronic.
         
         TODO: update this to handle, e.g., transfer of maternal immunity.
         """
         prev = self.states["C"].count / sum([x.count for x in self.states.values()])
         cover_level = min(1, self.start_ratio + (1-self.start_ratio) * (t - self.start_t) / (self.max_cover_t - self.start_t))
+        imm_hhs = {}
         for ind in chain(imms):
-            if rng.random() < prev + self.imm_prev:
-                ind.next_state = self.states['C']
-            else:
-                ind.next_state = self.states[self.basic_susceptible]
+            ind.next_state = self.states[self.basic_susceptible]
             self.tick(t, ind)
-
+            hh_ID = ind.groups['household']
+            if hh_ID not in imm_hhs:
+                imm_hhs[hh_ID] = []
+            imm_hhs[hh_ID].append(ind)
+        for hh_ID in imm_hhs:
+            if rng.random() < prev + self.imm_prev:
+                for ind in imm_hhs[hh_ID]:
+                    ind.next_state = self.states['C']
+                    ind.route = Route.UNKNOWN
+                
         universal_pmtct_cover = cover_level * self.pmtct_cover
         universal_vac_cover = cover_level * self.vac_cover
         for ind in births:
@@ -129,6 +139,8 @@ class DiseaseHepB(DiseaseBase):
                 continue
             mother = [p for p in ind.parents if p.sex == 0]
             ind.next_state = self.states[self.basic_susceptible]
+            self.tick(t, ind)
+
             community = ind.groups['community']
             modified_pmtct_cover = universal_pmtct_cover * self.comunity_access[community] * self.origin_access[ind.origin]
             if mother:
@@ -142,10 +154,13 @@ class DiseaseHepB(DiseaseBase):
 
                 if acu_prob > 0 and rng.random() < acu_prob:
                     if t > self.start_t and modified_pmtct_cover > 0 and rng.random() < modified_pmtct_cover:
+                        # print("positive mother, transmission prevented by pmtct")
                         ind.next_state = self.states["V"]
                     else:
-                    #print(f"Mother {mother.state.label} --> baby infected (acute)")
+                        # print(f"Mother {mother.state.label} --> baby infected (acute)")
                         ind.next_state = self.states["A"]
+                        ind.route = Route.VERTICAL
+                        # print(ind.next_state)
 
 
             modified_vac_cover = universal_vac_cover * self.comunity_access[community] * self.origin_access[ind.origin]
@@ -154,7 +169,8 @@ class DiseaseHepB(DiseaseBase):
                     ind.next_state = self.states['V']
                 elif ind.next_state == self.states["A"] and rng.random() < modified_vac_cover / 2:
                     ind.next_state = self.states['V']
-            self.tick(t, ind)
+                    # print(f"Baby infected --> vaccinated")
+            
 
         for ind in deaths:
             if ind.state:
@@ -165,7 +181,7 @@ class DiseaseHepB(DiseaseBase):
         self.birth_count = len(births)
         self.death_count = len(deaths)
 
-        print(f"t: {t} -- Prevalence: {prev}")
+        # print(f"t: {t} -- Prevalence: {prev}")
 
     def update(self, t, P, rng):
         cover_level = min(1, self.start_treat_ratio + (1-self.start_treat_ratio) * (t - self.start_t) / (self.max_treat_cover_t - self.start_t))
@@ -248,6 +264,13 @@ class DiseaseHepB(DiseaseBase):
             #                    s_I = len([x for x in s if x.state.infectious])
             if exposure_type == 'infection':
                 ind.infections.append(t)
+                if ind.hh_source:
+                    if ind.age == 0:
+                        ind.route = Route.VERTICAL
+                    else:
+                        ind.route = Route.HORIZONTAL_HH
+                else:
+                    ind.route = Route.HORIZONTAL_COM
                 cases['infection'].append(ind)
             elif exposure_type == 'boosting':
                 cases['boosting'].append(ind)
@@ -267,6 +290,8 @@ class DiseaseHepB(DiseaseBase):
 
             if old_state not in self.infectious_states and new_state in self.infectious_states:
                 new_I.append(ind)
+            elif new_state == self.basic_susceptible:
+                ind.route = None
             if not self.cmatrix: continue
 
             # if I_in_age is not None and I_in_age >= 0 and new_state in self.infectious_states:

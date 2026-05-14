@@ -51,11 +51,7 @@ def run_single(p, cur_seed):
     return sim
 
 if __name__ == '__main__':
-    # sweep_params = [
-    #     {'name': 'couple_prob', 'values': [0.04]},
-    #     {'name': 'leaving_prob', 'values': [0.005]},
-    #     {'name': 'divorce_prob', 'values': [0.001]}
-    # ]
+
     sweep_params = [
         # {'name': 'couple_prob', 'values': [0.09]},
         # {'name': 'leaving_prob', 'values': [0.005]},

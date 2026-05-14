@@ -130,22 +130,23 @@ age_df4 <- load_age_data(generation_threshold="2", max_migrant_age="101", separa
   subset(select=c("age_group", "pop", "Source", "Scenario", "origin"))
 
 
-# plot_age_df <- age_df |>
-#   rbind(real_age_df)
-  #rbind(age_df_2, real_age_df_dup)
+plot_age_df <- age_df |>
+  rbind(real_age_df)
+rbind(age_df_2, real_age_df_dup)
 
 # print(mean((filter(age_df, growth_rate=="0.028")$pop - real_age_df$pop)^2))
 
 
-# ggplot(plot_age_df, aes(x=age_group, y=pop*100, group=Source, fill=Source)) +
-#   geom_col(position="identity", width=0.8, alpha=0.5) +
-#   # coord_flip() +
-#   scale_fill_manual(values=c("red", "grey35")) +
-#   theme_minimal() +
-#   xlab("Age group") +
-#   ylab("%") +
-#   #facet_grid(,vars(growth_rate)) +
-#   coord_flip()
+ggplot(plot_age_df, aes(x=age_group, y=pop*100, group=Source, fill=Source)) +
+  geom_col(position="dodge", width=0.8, alpha=0.6) +
+  # coord_flip() +
+  scale_fill_manual(values=c("red", "grey35")) +
+  theme_minimal() +
+  xlab("Age group") +
+  ylab("%") +
+  #facet_grid(,vars(growth_rate)) +
+  theme(legend.position="none") +
+  coord_flip()
 
 # age_df2base <- age_df
 # age_df2base$Source = age_df2$Source
@@ -201,9 +202,9 @@ plot_df <- df_hh |>
   rbind(real_hh_df)
 
 ggplot(plot_df, aes(x=size_ed, y=hh_per*100, group=Source, fill=Source)) +
-  geom_col(position="identity", width=0.8, alpha=0.5) +
+  geom_col(position="dodge", width=0.8, alpha=0.6) +
   # facet_grid(vars(lprob), vars(dprob)) +
-  scale_fill_manual(values=c("red", "grey35")) +
+  scale_fill_manual(values=c("red", "grey50")) +
   ylab("%") + xlab("Household size") +
   theme_minimal()
 ggplot(filter(df_hh, dprob=="0.0005"), aes(x=size, y=hh_per)) +
